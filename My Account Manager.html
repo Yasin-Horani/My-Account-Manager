@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Account Manager</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 12px;
+            position: fixed;
+            z-index: 50;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s, bottom 0.3s;
+        }
+        .toast.show { visibility: visible; opacity: 1; bottom: 50px; }
+        .password-mask { font-family: monospace; letter-spacing: 2px; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col items-center py-10">
+
+    <!-- Main Container -->
+    <div class="w-full max-w-4xl bg-white shadow-xl rounded-xl overflow-hidden p-6 mx-4 flex flex-col h-full max-h-[90vh]">
+        
+        <!-- Header and Form removed as requested -->
+
+        <!-- Table Container -->
+        <div class="overflow-y-auto grow border rounded-lg border-slate-200">
+            <table class="min-w-full divide-y divide-slate-200 relative">
+                <thead class="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-1/3">Username</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-1/12">Action</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-1/3">Password</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-1/12">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="bg-white divide-y divide-slate-200">
+                    <!-- Rows injected via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast shadow-lg flex items-center justify-center gap-2">
+        <i data-lucide="check-circle" class="w-5 h-5 text-green-400"></i>
+        <span id="toastMsg">Notification</span>
+    </div>
+
+    <script>
+        // =================================================================
+        //                     --- YOUR DATABASE ---
+        //           EDIT THE ACCOUNTS INSIDE THE "data" ARRAY BELOW
+        // =================================================================
+        
+        const INTERNAL_DB = {
+          "data": [
+            {
+              "username": "username",
+              "password": "password"
+            },
+			     {
+              "username": "username",
+              "password": "password"
+            },
+			     {
+              "username": "username",
+              "password": "password"
+            }
+          ]
+        };
+        // =================================================================
+        // =================================================================
+
+        // Initialize State from the hardcoded DB
+        let accounts = INTERNAL_DB.data.map((item, index) => ({
+            id: index, 
+            username: item.username || item.account, 
+            password: item.password,
+            visible: false
+        }));
+
+        // Initialize Icons
+        lucide.createIcons();
+        renderTable();
+
+        // --- CORE FUNCTIONS ---
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            if (accounts.length === 0) {
+                tbody.innerHTML = `
+                    <tr id="emptyRow">
+                        <td colspan="4" class="px-6 py-12 text-center text-slate-400">
+                            <span>No accounts found in INTERNAL_DB.</span>
+                        </td>
+                    </tr>`;
+                lucide.createIcons();
+                return;
+            }
+
+            accounts.forEach(entry => {
+                const passwordDisplay = entry.visible ? entry.password : "••••••••••••";
+                const passwordClass = entry.visible ? "text-slate-800 font-medium" : "text-slate-400 password-mask";
+                const eyeIcon = entry.visible ? "eye-off" : "eye";
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-semibold text-slate-800">${escapeHtml(entry.username)}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <button onclick="copyText('${escapeHtml(entry.username)}', 'Username')" 
+                            class="flex items-center gap-1 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-1.5 px-3 rounded-md transition border border-indigo-200">
+                            <i data-lucide="copy" class="w-3 h-3"></i> Copy
+                        </button>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm ${passwordClass}">${escapeHtml(passwordDisplay)}</span>
+                            <button onclick="toggleVisibility(${entry.id})" class="text-slate-400 hover:text-slate-600 transition">
+                                <i data-lucide="${eyeIcon}" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <button onclick="copyText('${escapeHtml(entry.password)}', 'Password')" 
+                            class="flex items-center gap-1 text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-1.5 px-3 rounded-md transition border border-emerald-200">
+                            <i data-lucide="key" class="w-3 h-3"></i> Copy
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        // --- ACTIONS ---
+
+        function addEntry() {
+            const userInput = document.getElementById('inputAccount');
+            const passInput = document.getElementById('inputPassword');
+            
+            if (!userInput.value.trim() || !passInput.value.trim()) {
+                showToast("Please fill in both fields", true);
+                return;
+            }
+
+            accounts.push({
+                id: Date.now(),
+                username: userInput.value.trim(),
+                password: passInput.value.trim(),
+                visible: false
+            });
+            
+            userInput.value = '';
+            passInput.value = '';
+            userInput.focus();
+
+            renderTable();
+            showToast("Added! (Click 'Copy JSON' to save permanently)");
+        }
+
+        function toggleVisibility(id) {
+            const entry = accounts.find(a => a.id === id);
+            if (entry) {
+                entry.visible = !entry.visible;
+                renderTable();
+            }
+        }
+
+        // --- HELPER: COPY CONFIG FOR EDITOR ---
+        // This generates the JSON string so you can paste it back into your code
+        function copyCurrentStateForEditor() {
+            // 1. Strip internal fields (id, visible)
+            const cleanData = accounts.map(a => ({
+                username: a.username,
+                password: a.password
+            }));
+
+            // 2. Format as the specific object structure
+            const dbObject = { data: cleanData };
+            const jsonString = JSON.stringify(dbObject, null, 2);
+
+            // 3. Copy to clipboard
+            copyTextToClipboard(jsonString);
+            showToast("JSON copied! Paste it into the script tag.");
+        }
+
+        // --- UTILS ---
+
+        function copyText(text, type) {
+            copyTextToClipboard(text);
+            showToast(`${type} copied!`);
+        }
+
+        function copyTextToClipboard(text) {
+            const el = document.createElement('textarea');
+            el.value = text;
+            el.setAttribute('readonly', '');
+            el.style.position = 'absolute';
+            el.style.left = '-9999px';
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            toast.style.backgroundColor = isError ? "#e11d48" : "#333";
+            toastMsg.innerText = message;
+            toast.className = "toast show shadow-lg flex items-center justify-center gap-2";
+            setTimeout(() => {
+                toast.className = toast.className.replace("show", "");
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return "";
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+        
+        // Input event listener removed
+    </script>
+</body>
+</html>
